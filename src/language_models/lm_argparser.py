@@ -26,7 +26,7 @@ lm_parser.add_argument('--dropout', type=float, default=0.2,
 lm_parser.add_argument('--tied', action='store_true',
                        help='tie the word embedding and softmax weights')
 
-lm_parser.add_argument('--lr', type=float, default=20,
+lm_parser.add_argument('--lr', type=float, default=0.1, # originally, this was 20
                        help='initial learning rate')
 lm_parser.add_argument('--clip', type=float, default=0.25,
                        help='gradient clipping')

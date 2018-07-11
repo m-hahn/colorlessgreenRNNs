@@ -46,10 +46,11 @@ class Dictionary(object):
 
 
 class Corpus(object):
-    def __init__(self, path):
+    def __init__(self, path, onlyTest=False):
         self.dictionary = Dictionary(path)
-        self.train = tokenize(self.dictionary, os.path.join(path, 'train.txt'))
-        self.valid = tokenize(self.dictionary, os.path.join(path, 'valid.txt'))
+        if not onlyTest:
+            self.train = tokenize(self.dictionary, os.path.join(path, 'train.txt'))
+            self.valid = tokenize(self.dictionary, os.path.join(path, 'valid.txt'))
         self.test = tokenize(self.dictionary, os.path.join(path, 'test.txt'))
 
 
@@ -64,10 +65,14 @@ def tokenize(dictionary, path):
             ntokens += len(words)
 
     # Tokenize file content
+    counter = 0
     with open(path, 'r') as f:
         ids = torch.LongTensor(ntokens)
         token = 0
         for line in f:
+            counter += 1
+            if counter % 1000 == 0:
+               print(counter)
             words = line.split()
             for word in words:
                 if word in dictionary.word2idx:

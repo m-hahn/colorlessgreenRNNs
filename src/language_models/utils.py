@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-
+import torch
 from torch.autograd import Variable
 
 def repackage_hidden(h):
@@ -13,12 +13,16 @@ def repackage_hidden(h):
     if type(h) == Variable:
         return Variable(h.data)
     else:
-        return tuple(repackage_hidden(v) for v in h)
+        return tuple(Variable(v.detach().data) for v in h)
 
 
 def get_batch(source, i, seq_length, evaluation=False):
     seq_len = min(seq_length, len(source) - 1 - i)
-    data = Variable(source[i:i+seq_len], volatile=evaluation)
+    if evaluation:
+      with torch.no_grad():
+         data = Variable(source[i:i+seq_len])
+    else:
+       data = Variable(source[i:i+seq_len])
     # predict the sequences shifted by one word
     target = Variable(source[i+1:i+1+seq_len].view(-1))
     return data, target

@@ -48,7 +48,7 @@ logging.info("( %.2f )" % (time.time() - start))
 logging.info("Batchying..")
 eval_batch_size = 10
 train_data = batchify(corpus.train, args.batch_size, args.cuda)
-#logging.info("Train data size", train_data.size())
+logging.info("Train data size", train_data.size())
 val_data = batchify(corpus.valid, eval_batch_size, args.cuda)
 test_data = batchify(corpus.test, eval_batch_size, args.cuda)
 
@@ -66,6 +66,44 @@ model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers
 if args.cuda:
     model.cuda()
 
+with open(args.save, 'rb') as f:
+    model = torch.load(f)
+
+
+
+###############################################################################
+# Training code
+###############################################################################
+
+
+def compute_surprisals(data_source):
+    # Turn on evaluation mode which disables dropout.
+    model.eval()
+    total_loss = 0
+    hidden = model.init_hidden(eval_batch_size)
+
+    for i in range(0, data_source.size(0) - 1, args.bptt):
+        data, targets = get_batch(data_source, i, args.bptt, evaluation=True)
+#        print(data.size())
+ #       print(targets.size())
+        #> output has size seq_length x batch_size x vocab_size
+        output, hidden = model(data, None)
+        #> output_flat has size num_targets x vocab_size (batches are stacked together)
+        #> ! important, otherwise softmax computation (e.g. with F.softmax()) is incorrect
+        output_flat = output.view(-1, ntokens)
+        #output_candidates_info(output_flat.data, targets.data)
+        loss = nn.CrossEntropyLoss(size_average=False, reduce=False)(output_flat, targets).data.cpu().view(-1, eval_batch_size).numpy()
+#        print(loss)
+#        hidden = repackage_hidden(hidden)
+        targets = targets.data.view(-1, eval_batch_size).cpu().numpy()
+        for batch in range(eval_batch_size):
+           print("--")
+           for j in range(data.size()[0]):
+             print(corpus.dictionary.idx2word[targets[j][batch]], loss[j][batch])
+
+    return total_loss[0] /len(data_source)
+
+
 
 
 ###############################################################################
@@ -82,13 +120,13 @@ def evaluate(data_source):
     for i in range(0, data_source.size(0) - 1, args.bptt):
         data, targets = get_batch(data_source, i, args.bptt, evaluation=True)
         #> output has size seq_length x batch_size x vocab_size
-        output, hidden = model(data, hidden)
+        output, hidden = model(data, None)
         #> output_flat has size num_targets x vocab_size (batches are stacked together)
         #> ! important, otherwise softmax computation (e.g. with F.softmax()) is incorrect
         output_flat = output.view(-1, ntokens)
         #output_candidates_info(output_flat.data, targets.data)
         total_loss += len(data) * nn.CrossEntropyLoss()(output_flat, targets).data
-        hidden = repackage_hidden(hidden)
+#        hidden = repackage_hidden(hidden)
 
     return total_loss[0] /len(data_source)
 
@@ -106,9 +144,9 @@ def train():
     for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
         data, targets = get_batch(train_data, i, args.bptt)
         # truncated BPP
-        hidden = repackage_hidden(hidden)
+#        hidden = repackage_hidden(hidden)
         model.zero_grad()
-        output, hidden = model(data, hidden)
+        output, hidden = model(data, None)
 
         loss = criterion(output.view(-1, ntokens), targets)
         loss.backward()
@@ -149,6 +187,7 @@ try:
         logging.info('-' * 89)
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
+            logging.info("Saving model")
             with open(args.save, 'wb') as f:
                 torch.save(model, f)
             best_val_loss = val_loss
@@ -159,12 +198,6 @@ except KeyboardInterrupt:
     logging.info('-' * 89)
     logging.info('Exiting from training early')
 
-# Load the best saved model.
-with open(args.save, 'rb') as f:
-    model = torch.load(f)
 
-# Run on test data.
-test_loss = evaluate(test_data)
-logging.info('=' * 89)
-logging.info('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(test_loss, math.exp(test_loss)))
-logging.info('=' * 89)
+#val_loss = evaluate(val_data)
+
